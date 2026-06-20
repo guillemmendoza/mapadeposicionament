@@ -79,8 +79,12 @@
     cursor: grab; white-space: nowrap; user-select: none;
     display: flex; align-items: center; gap: 6px; border: 2px solid; z-index: 1;
   }
-  .box i { font-size: 15px; cursor: pointer; opacity: 0.9; padding: 4px; position: relative; z-index: 3; }
-  .box i:hover { opacity: 1; }
+  .box .del-x {
+    font-size: 14px; cursor: pointer; opacity: 0.9; padding: 2px 5px;
+    position: relative; z-index: 3; font-weight: 700; line-height: 1;
+    border-radius: 4px;
+  }
+  .box .del-x:hover { opacity: 1; background: rgba(0,0,0,0.15); }
   .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; font-size: 12px; }
   .legend-item { display: flex; align-items: center; gap: 6px; }
   .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; border: 2px solid; }
@@ -97,6 +101,12 @@
   .entity-cat { color: var(--text-secondary); }
   .entity-row i { cursor: pointer; opacity: 0.7; font-size: 16px; padding: 4px; }
   .entity-row i:hover { opacity: 1; }
+  .delete-text-btn {
+    cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text);
+    background: var(--bg-secondary); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 10px; flex-shrink: 0;
+  }
+  .delete-text-btn:hover { background: var(--border); }
   .empty-list { padding: 14px 12px; font-size: 13px; color: var(--text-secondary); }
   .settings-toggle { margin-top: 28px; }
   .settings-panel {
@@ -266,8 +276,10 @@ function renderList() {
       <span class="entity-name">${entry.label}</span>
       <span class="entity-cat">${cat.label}</span>
     `;
-    const del = document.createElement('i');
-    del.className = 'ti ti-trash';
+    const del = document.createElement('span');
+    del.className = 'delete-text-btn';
+    del.textContent = 'Eliminar';
+    del.setAttribute('role', 'button');
     del.setAttribute('aria-label', 'Eliminar ' + entry.label);
     del.addEventListener('click', () => removeEntry(entry));
     row.appendChild(del);
@@ -318,8 +330,10 @@ function makeBox(label, categoryKey, xPct, yPct) {
   });
   text.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); text.blur(); } });
 
-  const del = document.createElement('i');
-  del.className = 'ti ti-x';
+  const del = document.createElement('span');
+  del.className = 'del-x';
+  del.textContent = '✕';
+  del.setAttribute('role', 'button');
   del.setAttribute('aria-label', 'Eliminar ' + label);
   del.addEventListener('click', (e) => {
     e.stopPropagation();
