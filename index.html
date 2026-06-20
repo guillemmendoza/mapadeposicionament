@@ -52,6 +52,11 @@
   }
   button:hover { background: var(--bg-secondary); }
   button:active { transform: scale(0.98); }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button:disabled:hover { background: var(--bg); }
+  button.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .toolbar-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .toolbar-row .spacer { flex: 1; }
   #board {
     position: relative; width: 100%; aspect-ratio: 1/1;
     border: 1px solid var(--border-strong); border-radius: var(--radius);
@@ -112,6 +117,8 @@
   .slider-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
   .slider-row label { font-size: 11px; color: var(--text-secondary); width: 14px; flex-shrink: 0; }
   .slider-row input[type="range"] { flex: 1; height: 28px; }
+  .settings-actions { display: flex; justify-content: space-between; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .hint { font-size: 12px; color: var(--text-secondary); margin-top: 6px; }
   footer { margin-top: 32px; font-size: 12px; color: var(--text-secondary); text-align: center; }
 </style>
 </head>
@@ -119,6 +126,12 @@
 <div class="wrap">
   <h1>Mapa de posicionament</h1>
   <p class="subtitle">Eix horitzontal: afinitat amb ERC · Eix vertical: poder i influència</p>
+
+  <div class="toolbar-row">
+    <button id="undo-btn" title="Desfer (Ctrl+Z)"><i class="ti ti-arrow-back-up" aria-hidden="true"></i> Desfer</button>
+    <button id="redo-btn" title="Refer (Ctrl+Y)"><i class="ti ti-arrow-forward-up" aria-hidden="true"></i> Refer</button>
+    <span class="spacer"></span>
+  </div>
 
   <div class="controls">
     <input id="label-input" type="text" placeholder="Nom de l'entitat" maxlength="30" />
@@ -157,12 +170,21 @@
   </div>
   <div class="settings-panel" id="settings-panel">
     <div id="cat-settings"></div>
+    <div class="settings-actions">
+      <button id="add-category-btn"><i class="ti ti-plus" aria-hidden="true"></i> Afegir categoria</button>
+      <div style="display:flex;gap:8px">
+        <button id="cancel-categories-btn">Cancel·la</button>
+        <button id="save-categories-btn" class="primary"><i class="ti ti-check" aria-hidden="true"></i> Guardar canvis</button>
+      </div>
+    </div>
+    <p class="hint">Els canvis de nom i color només s'apliquen al mapa quan cliques "Guardar canvis".</p>
   </div>
 
   <footer>Mapa de posicionament — fet amb Claude</footer>
 </div>
 
 <script>
+/* ---------- categories ---------- */
 const categories = [
   { key: "politica",  label: "Partits i institucions polítiques",     h: 205, s: 72, l: 38 },
   { key: "cultural",  label: "Entitats culturals",                     h: 0,   s: 56, l: 40 },
@@ -182,13 +204,18 @@ function hslToHex(h, s, l) {
   return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
 }
 
-function refreshCategoryColors(cat) {
+function refreshColors(cat) {
   cat.fill = hslToHex(cat.h, cat.s, cat.l);
   cat.border = hslToHex(cat.h, cat.s, Math.max(0, cat.l - 18));
   cat.text = cat.l > 58 ? '#1a1a18' : '#ffffff';
 }
-categories.forEach(refreshCategoryColors);
+categories.forEach(refreshColors);
 
+function categoryOf(key) {
+  return categories.find(c => c.key === key) || categories[0];
+}
+
+/* ---------- select / legend ---------- */
 const select = document.getElementById('category-select');
 function renderSelectOptions() {
   const prevValue = select.value;
@@ -199,7 +226,7 @@ function renderSelectOptions() {
     opt.textContent = c.label;
     select.appendChild(opt);
   });
-  if (prevValue) select.value = prevValue;
+  if (prevValue && categories.some(c => c.key === prevValue)) select.value = prevValue;
 }
 renderSelectOptions();
 
@@ -215,14 +242,11 @@ function renderLegend() {
 }
 renderLegend();
 
+/* ---------- entities / board ---------- */
 const board = document.getElementById('board');
 const entityListEl = document.getElementById('entity-list');
 const boxes = [];
 let idCounter = 0;
-
-function categoryOf(key) {
-  return categories.find(c => c.key === key) || categories[0];
-}
 
 function renderList() {
   entityListEl.innerHTML = '';
@@ -252,103 +276,12 @@ function renderList() {
 }
 
 function removeEntry(entry) {
+  pushHistory();
   entry.box.remove();
   const idx = boxes.indexOf(entry);
   if (idx > -1) boxes.splice(idx, 1);
   renderList();
 }
-
-function applyCategoryToBoxes(cat) {
-  boxes.forEach(entry => {
-    if (entry.category === cat.key) {
-      entry.box.style.background = cat.fill;
-      entry.box.style.color = cat.text;
-      entry.box.style.borderColor = cat.border;
-    }
-  });
-}
-
-function onCategoryChanged(cat) {
-  refreshCategoryColors(cat);
-  renderSelectOptions();
-  renderLegend();
-  renderList();
-  applyCategoryToBoxes(cat);
-  const row = document.getElementById('cat-row-' + cat.key);
-  if (row) {
-    const dot = row.querySelector('.cat-dot');
-    if (dot) { dot.style.background = cat.fill; dot.style.borderColor = cat.border; }
-  }
-}
-
-const catSettingsEl = document.getElementById('cat-settings');
-function renderCatRow(cat) {
-  let row = document.getElementById('cat-row-' + cat.key);
-  if (!row) {
-    row = document.createElement('div');
-    row.className = 'cat-row';
-    row.id = 'cat-row-' + cat.key;
-    catSettingsEl.appendChild(row);
-  }
-  row.innerHTML = '';
-
-  const dot = document.createElement('span');
-  dot.className = 'cat-dot';
-  dot.style.background = cat.fill;
-  dot.style.borderColor = cat.border;
-  row.appendChild(dot);
-
-  const right = document.createElement('div');
-
-  const nameInput = document.createElement('input');
-  nameInput.type = 'text';
-  nameInput.className = 'cat-name-input';
-  nameInput.value = cat.label;
-  nameInput.maxLength = 40;
-  nameInput.addEventListener('input', () => {
-    cat.label = nameInput.value.trim() || cat.label;
-    renderSelectOptions();
-    renderLegend();
-    renderList();
-  });
-  right.appendChild(nameInput);
-
-  const sliders = [
-    { key: 'h', min: 0, max: 360, label: 'To' },
-    { key: 's', min: 0, max: 100, label: 'Sat' },
-    { key: 'l', min: 0, max: 100, label: 'Llum' }
-  ];
-  sliders.forEach(s => {
-    const sliderRow = document.createElement('div');
-    sliderRow.className = 'slider-row';
-    const lab = document.createElement('label');
-    lab.textContent = s.label;
-    const input = document.createElement('input');
-    input.type = 'range';
-    input.min = s.min;
-    input.max = s.max;
-    input.value = cat[s.key];
-    input.addEventListener('input', () => {
-      cat[s.key] = Number(input.value);
-      onCategoryChanged(cat);
-    });
-    sliderRow.appendChild(lab);
-    sliderRow.appendChild(input);
-    right.appendChild(sliderRow);
-  });
-
-  row.appendChild(right);
-}
-
-function renderCatSettings() {
-  catSettingsEl.innerHTML = '';
-  categories.forEach(renderCatRow);
-}
-renderCatSettings();
-
-document.getElementById('settings-toggle-btn').onclick = () => {
-  document.getElementById('settings-panel').classList.toggle('open');
-};
 
 function makeBox(label, categoryKey, xPct, yPct) {
   const cat = categoryOf(categoryKey);
@@ -363,15 +296,24 @@ function makeBox(label, categoryKey, xPct, yPct) {
   const text = document.createElement('span');
   text.textContent = label;
   text.title = "Doble clic per editar";
+  let preEditSnapshot = null;
   text.addEventListener('dblclick', (e) => {
     e.stopPropagation();
+    preEditSnapshot = getStateSnapshot();
     text.contentEditable = true;
     text.focus();
     document.execCommand('selectAll', false, null);
   });
   text.addEventListener('blur', () => {
     text.contentEditable = false;
-    entry.label = text.textContent.trim() || entry.label;
+    const newLabel = text.textContent.trim() || entry.label;
+    if (newLabel !== entry.label && preEditSnapshot) {
+      undoStack.push(preEditSnapshot);
+      redoStack.length = 0;
+      updateHistoryButtons();
+    }
+    entry.label = newLabel;
+    text.textContent = newLabel;
     renderList();
   });
   text.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); text.blur(); } });
@@ -391,11 +333,18 @@ function makeBox(label, categoryKey, xPct, yPct) {
   boxes.push(entry);
   renderList();
 
-  let moved = false, startX, startY, origLeft, origTop;
+  let moved = false, startX, startY, origLeft, origTop, preDragSnapshot = null;
 
   function onPointerMove(e) {
     const dx = e.clientX - startX, dy = e.clientY - startY;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
+    if (!moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+      moved = true;
+      if (preDragSnapshot) {
+        undoStack.push(preDragSnapshot);
+        redoStack.length = 0;
+        updateHistoryButtons();
+      }
+    }
     const rect = board.getBoundingClientRect();
     let newLeft = Math.max(0, Math.min(rect.width, origLeft + dx));
     let newTop = Math.max(0, Math.min(rect.height, origTop + dy));
@@ -414,6 +363,7 @@ function makeBox(label, categoryKey, xPct, yPct) {
   box.addEventListener('pointerdown', (e) => {
     if (e.target === del || text.isContentEditable) return;
     moved = false;
+    preDragSnapshot = getStateSnapshot();
     box.style.cursor = 'grabbing';
     startX = e.clientX; startY = e.clientY;
     const rect = board.getBoundingClientRect();
@@ -428,6 +378,7 @@ function makeBox(label, categoryKey, xPct, yPct) {
 document.getElementById('add-btn').onclick = () => {
   const input = document.getElementById('label-input');
   const label = input.value.trim() || ('Element ' + (++idCounter));
+  pushHistory();
   makeBox(label, select.value, 50, 50);
   input.value = '';
 };
@@ -437,8 +388,12 @@ document.getElementById('label-input').addEventListener('keydown', (e) => {
 
 renderList();
 
+/* ---------- save / load session ---------- */
 document.getElementById('export-json-btn').onclick = () => {
-  const data = boxes.map(b => ({ label: b.label, category: b.category, x: Math.round(b.xPct * 10) / 10, y: Math.round(b.yPct * 10) / 10 }));
+  const data = {
+    entities: boxes.map(b => ({ label: b.label, category: b.category, x: Math.round(b.xPct * 10) / 10, y: Math.round(b.yPct * 10) / 10 })),
+    categories: categories.map(c => ({ key: c.key, label: c.label, h: c.h, s: c.s, l: c.l }))
+  };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -456,15 +411,197 @@ document.getElementById('import-file').addEventListener('change', (e) => {
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
+      pushHistory();
+      const entities = Array.isArray(data) ? data : (data.entities || []);
+      const importedCategories = Array.isArray(data) ? null : data.categories;
+      if (importedCategories && importedCategories.length) {
+        categories.length = 0;
+        importedCategories.forEach(c => categories.push({ key: c.key, label: c.label, h: c.h, s: c.s, l: c.l }));
+        categories.forEach(refreshColors);
+        renderSelectOptions();
+        renderLegend();
+        syncDraftFromCategories();
+      }
       boxes.slice().forEach(b => b.box.remove());
       boxes.length = 0;
-      data.forEach(d => makeBox(d.label, d.category, d.x, d.y));
+      entities.forEach(d => makeBox(d.label, d.category, d.x, d.y));
     } catch (err) {
       alert('No s\'ha pogut llegir el fitxer JSON.');
     }
   };
   reader.readAsText(file);
   e.target.value = '';
+});
+
+/* ---------- advanced settings (draft mode) ---------- */
+let draftCategories = categories.map(c => ({ ...c }));
+
+const catSettingsEl = document.getElementById('cat-settings');
+
+function renderCatSettings() {
+  catSettingsEl.innerHTML = '';
+  draftCategories.forEach(d => {
+    refreshColors(d);
+    const row = document.createElement('div');
+    row.className = 'cat-row';
+    row.id = 'draft-row-' + d.key;
+
+    const dot = document.createElement('span');
+    dot.className = 'cat-dot';
+    dot.style.background = d.fill;
+    dot.style.borderColor = d.border;
+    row.appendChild(dot);
+
+    const right = document.createElement('div');
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'cat-name-input';
+    nameInput.value = d.label;
+    nameInput.maxLength = 40;
+    nameInput.addEventListener('input', () => { d.label = nameInput.value; });
+    right.appendChild(nameInput);
+
+    const sliders = [
+      { key: 'h', min: 0, max: 360, label: 'To' },
+      { key: 's', min: 0, max: 100, label: 'Sat' },
+      { key: 'l', min: 0, max: 100, label: 'Llum' }
+    ];
+    sliders.forEach(s => {
+      const sliderRow = document.createElement('div');
+      sliderRow.className = 'slider-row';
+      const lab = document.createElement('label');
+      lab.textContent = s.label;
+      const input = document.createElement('input');
+      input.type = 'range';
+      input.min = s.min;
+      input.max = s.max;
+      input.value = d[s.key];
+      input.addEventListener('input', () => {
+        d[s.key] = Number(input.value);
+        refreshColors(d);
+        dot.style.background = d.fill;
+        dot.style.borderColor = d.border;
+      });
+      sliderRow.appendChild(lab);
+      sliderRow.appendChild(input);
+      right.appendChild(sliderRow);
+    });
+
+    row.appendChild(right);
+    catSettingsEl.appendChild(row);
+  });
+}
+renderCatSettings();
+
+function syncDraftFromCategories() {
+  draftCategories = categories.map(c => ({ ...c }));
+  renderCatSettings();
+}
+
+document.getElementById('settings-toggle-btn').onclick = () => {
+  document.getElementById('settings-panel').classList.toggle('open');
+};
+
+document.getElementById('add-category-btn').onclick = () => {
+  draftCategories.push({ key: 'cat_' + Date.now(), label: 'Nova categoria', h: Math.floor(Math.random() * 360), s: 65, l: 35 });
+  renderCatSettings();
+};
+
+document.getElementById('cancel-categories-btn').onclick = () => {
+  syncDraftFromCategories();
+};
+
+document.getElementById('save-categories-btn').onclick = () => {
+  pushHistory();
+  categories.length = 0;
+  draftCategories.forEach(d => {
+    const label = (d.label || '').trim() || 'Categoria sense nom';
+    categories.push({ key: d.key, label, h: d.h, s: d.s, l: d.l });
+  });
+  categories.forEach(refreshColors);
+  renderSelectOptions();
+  renderLegend();
+  renderList();
+  boxes.forEach(entry => {
+    const cat = categoryOf(entry.category);
+    entry.box.style.background = cat.fill;
+    entry.box.style.color = cat.text;
+    entry.box.style.borderColor = cat.border;
+  });
+  syncDraftFromCategories();
+};
+
+/* ---------- undo / redo ---------- */
+let undoStack = [];
+let redoStack = [];
+const MAX_HISTORY = 60;
+
+function getStateSnapshot() {
+  return {
+    entities: boxes.map(b => ({ label: b.label, category: b.category, x: b.xPct, y: b.yPct })),
+    categories: categories.map(c => ({ key: c.key, label: c.label, h: c.h, s: c.s, l: c.l }))
+  };
+}
+
+function pushHistory() {
+  undoStack.push(getStateSnapshot());
+  if (undoStack.length > MAX_HISTORY) undoStack.shift();
+  redoStack.length = 0;
+  updateHistoryButtons();
+}
+
+function restoreState(state) {
+  categories.length = 0;
+  state.categories.forEach(c => categories.push({ ...c }));
+  categories.forEach(refreshColors);
+  renderSelectOptions();
+  renderLegend();
+  syncDraftFromCategories();
+
+  boxes.slice().forEach(b => b.box.remove());
+  boxes.length = 0;
+  state.entities.forEach(e => makeBox(e.label, e.category, e.x, e.y));
+  renderList();
+}
+
+function undo() {
+  if (undoStack.length === 0) return;
+  const current = getStateSnapshot();
+  const prev = undoStack.pop();
+  redoStack.push(current);
+  restoreState(prev);
+  updateHistoryButtons();
+}
+function redo() {
+  if (redoStack.length === 0) return;
+  const current = getStateSnapshot();
+  const next = redoStack.pop();
+  undoStack.push(current);
+  restoreState(next);
+  updateHistoryButtons();
+}
+
+function updateHistoryButtons() {
+  document.getElementById('undo-btn').disabled = undoStack.length === 0;
+  document.getElementById('redo-btn').disabled = redoStack.length === 0;
+}
+updateHistoryButtons();
+
+document.getElementById('undo-btn').onclick = undo;
+document.getElementById('redo-btn').onclick = redo;
+
+document.addEventListener('keydown', (e) => {
+  const t = document.activeElement;
+  const isEditableField = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable);
+  const key = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && key === 'z' && !isEditableField) {
+    e.preventDefault();
+    undo();
+  } else if ((e.ctrlKey || e.metaKey) && key === 'y' && !isEditableField) {
+    e.preventDefault();
+    redo();
+  }
 });
 </script>
 </body>
