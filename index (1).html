@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mapa de posicionament — Esquerra/Dreta i Poder/Influència</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.44.0/iconfont/tabler-icons.min.css" />
+<style>
+  :root {
+    --bg: #ffffff;
+    --bg-secondary: #f7f6f3;
+    --text: #1a1a18;
+    --text-secondary: #5f5e5a;
+    --border: rgba(0,0,0,0.12);
+    --border-strong: rgba(0,0,0,0.25);
+    --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a;
+      --bg-secondary: #262624;
+      --text: #f1efe8;
+      --text-secondary: #b4b2a9;
+      --border: rgba(255,255,255,0.15);
+      --border-strong: rgba(255,255,255,0.3);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 2rem 1.25rem 4rem;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 { font-size: 20px; font-weight: 600; margin: 0 0 4px; }
+  .subtitle { font-size: 14px; color: var(--text-secondary); margin: 0 0 24px; }
+  .controls {
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+    margin-bottom: 16px;
+  }
+  input[type="text"], select {
+    height: 36px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); padding: 0 10px; font-size: 14px;
+  }
+  #label-input { flex: 1; min-width: 160px; }
+  button {
+    height: 36px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); padding: 0 14px; font-size: 14px;
+    cursor: pointer;
+  }
+  button:hover { background: var(--bg-secondary); }
+  button:active { transform: scale(0.98); }
+  #board-area { position: relative; padding-top: 22px; }
+  .axis-top {
+    position: absolute; left: 0; top: 0; font-size: 12px; font-weight: 600; color: var(--text-secondary);
+  }
+  #board {
+    position: relative; width: 100%; aspect-ratio: 1/1;
+    border: 1px solid var(--border-strong); border-radius: var(--radius);
+    background: var(--bg); overflow: hidden; touch-action: none;
+  }
+  .quadrant-label {
+    position: absolute; font-size: 11px; color: var(--text-secondary); opacity: 0.7;
+    pointer-events: none;
+  }
+  .grid-line { position: absolute; background: var(--border); }
+  .axis-bottom-row {
+    display: flex; justify-content: space-between; font-size: 12px;
+    color: var(--text-secondary); margin-top: 6px;
+  }
+  .box {
+    position: absolute; transform: translate(-50%, -50%);
+    font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 8px;
+    cursor: grab; white-space: nowrap; user-select: none;
+    display: flex; align-items: center; gap: 6px; border: 1px solid; z-index: 1;
+  }
+  .box i { font-size: 13px; cursor: pointer; opacity: 0.6; }
+  .box i:hover { opacity: 1; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; font-size: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  .list-title { font-size: 16px; font-weight: 600; margin: 28px 0 10px; }
+  .entity-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .entity-row {
+    display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+    border-bottom: 1px solid var(--border); font-size: 13px;
+  }
+  .entity-row:last-child { border-bottom: none; }
+  .entity-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .entity-name { font-weight: 600; flex: 1; }
+  .entity-cat { color: var(--text-secondary); }
+  .entity-row i { cursor: pointer; opacity: 0.6; font-size: 14px; }
+  .entity-row i:hover { opacity: 1; }
+  .empty-list { padding: 14px 12px; font-size: 13px; color: var(--text-secondary); }
+  footer { margin-top: 32px; font-size: 12px; color: var(--text-secondary); text-align: center; }
+  footer a { color: inherit; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Mapa de posicionament</h1>
+  <p class="subtitle">Eix horitzontal: Esquerra ↔ Dreta · Eix vertical: Poder i influència</p>
+
+  <div class="controls">
+    <input id="label-input" type="text" placeholder="Nom de l'entitat" maxlength="30" />
+    <select id="category-select"></select>
+    <button id="add-btn"><i class="ti ti-plus" aria-hidden="true"></i> Afegir</button>
+  </div>
+
+  <div id="board-area">
+    <div class="axis-top">+ Poder i influència</div>
+    <div id="board">
+      <div class="quadrant-label" style="left:8px;top:8px">Esquerra · molt poder</div>
+      <div class="quadrant-label" style="right:8px;top:8px;text-align:right">Dreta · molt poder</div>
+      <div class="quadrant-label" style="left:8px;bottom:8px">Esquerra · poc poder</div>
+      <div class="quadrant-label" style="right:8px;bottom:8px;text-align:right">Dreta · poc poder</div>
+      <div class="grid-line" style="left:0;top:50%;width:100%;height:1px"></div>
+      <div class="grid-line" style="top:0;left:50%;width:1px;height:100%"></div>
+    </div>
+    <div class="axis-bottom-row">
+      <span>Esquerra</span>
+      <span style="font-weight:600">- Poder i influència</span>
+      <span>Dreta</span>
+    </div>
+  </div>
+
+  <div class="legend" id="legend"></div>
+
+  <div class="actions">
+    <button id="export-json-btn"><i class="ti ti-download" aria-hidden="true"></i> Exportar (.json)</button>
+    <button id="import-json-btn"><i class="ti ti-upload" aria-hidden="true"></i> Importar (.json)</button>
+    <input id="import-file" type="file" accept="application/json" style="display:none" />
+  </div>
+
+  <p class="list-title">Entitats afegides</p>
+  <ul class="entity-list" id="entity-list"></ul>
+
+  <footer>Mapa de posicionament — fet amb Claude</footer>
+</div>
+
+<script>
+const categories = [
+  { key: "politica",  label: "Partits i institucions polítiques",     fill: "#E6F1FB", border: "#0C447C", text: "#042C53" },
+  { key: "cultural",  label: "Entitats culturals",                     fill: "#FCEBEB", border: "#791F1F", text: "#501313" },
+  { key: "civica",    label: "Entitats i associacions cíviques",       fill: "#E1F5EE", border: "#085041", text: "#04342C" },
+  { key: "mitjans",   label: "Mitjans de comunicació",                 fill: "#FAEEDA", border: "#633806", text: "#412402" },
+  { key: "economica", label: "Sector econòmic / empresarial",          fill: "#FAECE7", border: "#712B13", text: "#4A1B0C" },
+  { key: "civil",     label: "Ciutadania i moviments socials",         fill: "#EAF3DE", border: "#27500A", text: "#173404" },
+  { key: "sindicats", label: "Sindicats",                              fill: "#EEEDFE", border: "#3C3489", text: "#26215C" }
+];
+
+const select = document.getElementById('category-select');
+categories.forEach(c => {
+  const opt = document.createElement('option');
+  opt.value = c.key;
+  opt.textContent = c.label;
+  select.appendChild(opt);
+});
+
+const legend = document.getElementById('legend');
+categories.forEach(c => {
+  const item = document.createElement('div');
+  item.className = 'legend-item';
+  item.innerHTML = `<span class="legend-dot" style="background:${c.fill};border:1px solid ${c.border}"></span><span>${c.label}</span>`;
+  legend.appendChild(item);
+});
+
+const board = document.getElementById('board');
+const entityListEl = document.getElementById('entity-list');
+const boxes = [];
+let idCounter = 0;
+
+function categoryOf(key) {
+  return categories.find(c => c.key === key) || categories[0];
+}
+
+function renderList() {
+  entityListEl.innerHTML = '';
+  if (boxes.length === 0) {
+    const empty = document.createElement('li');
+    empty.className = 'empty-list';
+    empty.textContent = 'Encara no hi ha cap entitat afegida.';
+    entityListEl.appendChild(empty);
+    return;
+  }
+  boxes.forEach(entry => {
+    const cat = categoryOf(entry.category);
+    const row = document.createElement('li');
+    row.className = 'entity-row';
+    row.innerHTML = `
+      <span class="entity-dot" style="background:${cat.fill};border:1px solid ${cat.border}"></span>
+      <span class="entity-name">${entry.label}</span>
+      <span class="entity-cat">${cat.label}</span>
+    `;
+    const del = document.createElement('i');
+    del.className = 'ti ti-trash';
+    del.setAttribute('aria-label', 'Eliminar ' + entry.label);
+    del.onclick = () => removeEntry(entry);
+    row.appendChild(del);
+    entityListEl.appendChild(row);
+  });
+}
+
+function removeEntry(entry) {
+  entry.box.remove();
+  const idx = boxes.indexOf(entry);
+  if (idx > -1) boxes.splice(idx, 1);
+  renderList();
+}
+
+function makeBox(label, categoryKey, xPct, yPct) {
+  const cat = categoryOf(categoryKey);
+  const box = document.createElement('div');
+  box.className = 'box';
+  box.style.left = xPct + '%';
+  box.style.top = yPct + '%';
+  box.style.background = cat.fill;
+  box.style.color = cat.text;
+  box.style.borderColor = cat.border;
+
+  const text = document.createElement('span');
+  text.textContent = label;
+  text.title = "Doble clic per editar";
+  text.addEventListener('dblclick', (e) => {
+    e.stopPropagation();
+    text.contentEditable = true;
+    text.focus();
+    document.execCommand('selectAll', false, null);
+  });
+  text.addEventListener('blur', () => {
+    text.contentEditable = false;
+    entry.label = text.textContent.trim() || entry.label;
+    renderList();
+  });
+  text.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); text.blur(); } });
+
+  const del = document.createElement('i');
+  del.className = 'ti ti-x';
+  del.setAttribute('aria-label', 'Eliminar');
+  del.onclick = (e) => {
+    e.stopPropagation();
+    removeEntry(entry);
+  };
+
+  box.appendChild(text);
+  box.appendChild(del);
+
+  const entry = { box, label, category: categoryKey, xPct, yPct };
+  boxes.push(entry);
+  renderList();
+
+  let dragging = false, startX, startY, origLeft, origTop;
+  box.addEventListener('pointerdown', (e) => {
+    if (e.target === del || text.isContentEditable) return;
+    dragging = true;
+    box.style.cursor = 'grabbing';
+    box.setPointerCapture(e.pointerId);
+    startX = e.clientX; startY = e.clientY;
+    const rect = board.getBoundingClientRect();
+    origLeft = (parseFloat(box.style.left) / 100) * rect.width;
+    origTop = (parseFloat(box.style.top) / 100) * rect.height;
+  });
+  box.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const rect = board.getBoundingClientRect();
+    let newLeft = origLeft + (e.clientX - startX);
+    let newTop = origTop + (e.clientY - startY);
+    newLeft = Math.max(0, Math.min(rect.width, newLeft));
+    newTop = Math.max(0, Math.min(rect.height, newTop));
+    const leftPct = newLeft / rect.width * 100, topPct = newTop / rect.height * 100;
+    box.style.left = leftPct + '%';
+    box.style.top = topPct + '%';
+    entry.xPct = leftPct;
+    entry.yPct = topPct;
+  });
+  box.addEventListener('pointerup', () => { dragging = false; box.style.cursor = 'grab'; });
+  board.appendChild(box);
+}
+
+document.getElementById('add-btn').onclick = () => {
+  const input = document.getElementById('label-input');
+  const label = input.value.trim() || ('Element ' + (++idCounter));
+  makeBox(label, select.value, 50, 50);
+  input.value = '';
+};
+document.getElementById('label-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('add-btn').click();
+});
+
+renderList();
+
+document.getElementById('export-json-btn').onclick = () => {
+  const data = boxes.map(b => ({ label: b.label, category: b.category, x: Math.round(b.xPct * 10) / 10, y: Math.round(b.yPct * 10) / 10 }));
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'mapa-posicionament.json';
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+document.getElementById('import-json-btn').onclick = () => document.getElementById('import-file').click();
+document.getElementById('import-file').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      boxes.slice().forEach(b => b.box.remove());
+      boxes.length = 0;
+      data.forEach(d => makeBox(d.label, d.category, d.x, d.y));
+    } catch (err) {
+      alert('No s\'ha pogut llegir el fitxer JSON.');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+</script>
+</body>
+</html>
