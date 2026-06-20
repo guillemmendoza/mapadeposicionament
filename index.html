@@ -131,7 +131,9 @@
   .hint { font-size: 12px; color: var(--text-secondary); margin-top: 6px; }
   footer { margin-top: 32px; font-size: 12px; color: var(--text-secondary); text-align: center; }
 
-  body.capture-mode .wrap { max-width: min(960px, 92vw); }
+  body.capture-mode { padding: 1rem 1rem 0.5rem; }
+  body.capture-mode .wrap { max-width: min(1100px, 96vw); }
+  body.capture-mode #board { width: min(100%, 66vh); margin: 6px auto 0; }
   body.capture-mode .controls,
   body.capture-mode .actions,
   body.capture-mode .settings-toggle,
@@ -142,8 +144,10 @@
     display: none !important;
   }
 
+  @page { size: A4 portrait; margin: 1.2cm; }
   @media print {
-    body { padding: 1cm; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+    body { padding: 0; }
     .wrap { max-width: 100%; }
     .toolbar-row,
     .controls,
@@ -155,8 +159,11 @@
     .delete-text-btn {
       display: none !important;
     }
-    #board { break-inside: avoid; page-break-inside: avoid; }
-    .entity-list { break-inside: avoid; }
+    #board {
+      width: 16cm !important; height: 16cm !important; aspect-ratio: unset;
+      margin: 0.3cm auto 0.5cm !important; break-inside: avoid; page-break-inside: avoid;
+    }
+    .legend, .list-title, .entity-list { break-inside: avoid; page-break-inside: avoid; }
   }
 </style>
 </head>
